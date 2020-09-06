@@ -3,6 +3,7 @@ package main
 import (
 	"bufio"
 	"fmt"
+	"io"
 	"math/rand"
 	"net"
 )
@@ -51,7 +52,11 @@ func (s *Server) handleConn(c *Client) {
 	}()
 
 	for {
-		msg, _ := bufio.NewReader(c.conn).ReadString('\n')
+		msg, err := bufio.NewReader(c.conn).ReadString('\n')
+		if err == io.EOF {
+			fmt.Printf("Client %s disconnected", c.id)
+			return
+		}
 		fmt.Printf("Message received by %s: %s", c.id, string(msg))
 		c.conn.Write([]byte(fmt.Sprintf("-> You sent %s", string(msg))))
 	}
