@@ -1,11 +1,10 @@
 package main
 
 import (
-	// "bufio"
+	"bufio"
 	"fmt"
 	"math/rand"
 	"net"
-	"time"
 )
 
 type Server struct {
@@ -52,14 +51,10 @@ func (s *Server) handleConn(c *Client) {
 	}()
 
 	for {
-		c.conn.Write([]byte("Hello world"))
-		time.Sleep(2 * time.Second)
+		msg, _ := bufio.NewReader(c.conn).ReadString('\n')
+		fmt.Printf("Message received by %s: %s", c.id, string(msg))
+		c.conn.Write([]byte(fmt.Sprintf("-> You sent %s", string(msg))))
 	}
-	// for {
-	// 	msg, _ := bufio.NewReader(c.conn).ReadString('\n')
-	// 	fmt.Printf("Message received by %s: %s", c.id, string(msg))
-	// 	c.conn.Write([]byte(fmt.Sprintf("-> You sent %s", string(msg))))
-	// }
 }
 
 // Monitors the backlog of the server. Every time a new connection comes in and the backlog is not full, the connection
