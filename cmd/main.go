@@ -6,6 +6,7 @@ import (
 	"io"
 	"math/rand"
 	"net"
+	"strings"
 )
 
 type Server struct {
@@ -52,13 +53,22 @@ func (s *Server) handleConn(c *Client) {
 	}()
 
 	for {
-		msg, err := bufio.NewReader(c.conn).ReadString('\n')
-		if err == io.EOF {
-			fmt.Printf("Client %s disconnected", c.id)
-			return
+		content := make([]string, 0)
+		for {
+			// Keep reading the input from the client and adding it to the content
+			msg, _, err := bufio.NewReader(c.conn).ReadLine()
+			if err == io.EOF {
+				fmt.Printf("Client %s disconnected\n", c.id)
+				return
+			}
+			if string(msg) == "" {
+				break
+			}
+			content = append(content, string(msg))
 		}
-		fmt.Printf("Message received by %s: %s", c.id, string(msg))
-		c.conn.Write([]byte(fmt.Sprintf("-> You sent %s", string(msg))))
+		message := strings.Join(content, "\n")
+		fmt.Printf("Message received by %s: %s\n", c.id, message)
+		c.conn.Write([]byte(fmt.Sprintf("-> You sent %s\n", message)))
 	}
 }
 
