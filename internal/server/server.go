@@ -52,13 +52,43 @@ func (s *Server) HandleConn(c *client.Client) {
 		}
 		message := strings.Join(content, "\n")
 		fmt.Printf("Message received by %s: %s\n", c.ID, message)
-		c.Conn.Write([]byte(fmt.Sprintf("-> You sent %s\n", message)))
-
-		// Get the protocol
-		protocol := Keyword(strings.Split(message, " ")[0])
-		switch protocol {
-		case GET:
-			fmt.Printf("GET protocol received")
+		c.Conn.Write([]byte(fmt.Sprintf("-- You sent %s\n", message)))
+		res, err := processMessage(message)
+		if err != nil {
+			c.Conn.Write([]byte(fmt.Sprintf("!- ERROR %s\n", err)))
+		} else {
+			c.Conn.Write([]byte(fmt.Sprintf(">- %s\n", res)))
 		}
 	}
+}
+
+func processMessage(message string) (string, error) {
+	parts := strings.Split(message, " ")
+	protocol := Keyword(parts[0])
+
+	switch protocol {
+	case GET:
+		word, err := handleGET(parts[1])
+		if err != nil {
+			return "", err
+		}
+		return fmt.Sprintf("ANSWER %s", word), nil
+
+	case SET:
+		handleSET(parts[1], strings.Join(parts[2:], "\n"))
+		return formatData(), nil
+
+	case CLEAR:
+		handleCLEAR()
+		return formatData(), nil
+
+	case ALL:
+		output := handleALL()
+		return strings.Join(output, "\n"), nil
+
+	default:
+		return "", fmt.Errorf("invalid protocol (%s) used", protocol)
+	}
+
+	return "", nil
 }
