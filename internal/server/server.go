@@ -13,16 +13,20 @@ type Server struct {
 	Ln      net.Listener
 	port    int
 	clients []*client.Client
+	done    chan bool
 }
 
 func Create(port int) *Server {
-	fmt.Printf("Creating server on port %d\n", port)
-	fmt.Printf("http://127.0.0.1:%d\n", port)
 	ln, err := net.Listen("tcp", fmt.Sprintf(":%d", port))
 	if err != nil {
 		panic(err)
 	}
-	return &Server{ln, port, make([]*client.Client, 0)}
+	return &Server{
+		ln,
+		port,
+		make([]*client.Client, 0),
+		make(chan bool, 1),
+	}
 }
 
 func (s *Server) AddConn(conn net.Conn) *client.Client {
@@ -60,6 +64,32 @@ func (s *Server) HandleConn(c *client.Client) {
 			c.Conn.Write([]byte(fmt.Sprintf(">- %s\n", res)))
 		}
 	}
+}
+
+func (s *Server) Start() {
+	fmt.Printf("Creating server on port %d\n", s.port)
+	fmt.Printf("http://127.0.0.1:%d\n", s.port)
+
+	for {
+		conn, err := s.Ln.Accept()
+		if err != nil {
+			select {
+			case <-s.done:
+			default:
+				fmt.Printf("Connection failed: %v", err)
+			}
+		}
+
+		client := s.AddConn(conn)
+		fmt.Printf("New connection made to client %s\n", client.ID)
+		go s.HandleConn(client)
+	}
+}
+
+func (s *Server) Stop() {
+	fmt.Println("Stopping server")
+	s.done <- true
+	s.Ln.Close()
 }
 
 func processMessage(message string) (string, error) {
