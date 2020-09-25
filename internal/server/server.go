@@ -7,6 +7,7 @@ import (
 	"github.com/woojiahao/go-http-server/internal/client"
 	"net"
 	"os"
+	"path/filepath"
 	"regexp"
 	"strings"
 )
@@ -16,10 +17,15 @@ type Server struct {
 	port    int
 	clients []*client.Client
 	done    chan bool
+	path    string
 }
 
 func Create(port int) *Server {
 	ln, err := net.Listen("tcp", fmt.Sprintf(":%d", port))
+	if err != nil {
+		panic(err)
+	}
+	path, err := os.Getwd()
 	if err != nil {
 		panic(err)
 	}
@@ -28,6 +34,7 @@ func Create(port int) *Server {
 		port,
 		make([]*client.Client, 0),
 		make(chan bool, 1),
+		path,
 	}
 }
 
@@ -39,6 +46,7 @@ func (s *Server) AddConn(conn net.Conn) *client.Client {
 
 func (s *Server) HandleConn(c *client.Client) {
 	defer func() {
+		fmt.Printf("Connection %s dropped\n", c.ID)
 		_ = c.Conn.Close()
 	}()
 
@@ -46,14 +54,25 @@ func (s *Server) HandleConn(c *client.Client) {
 	scanner.Split(scanLinesWithCR)
 	for scanner.Scan() {
 		message := scanner.Text()
-		fmt.Println(message)
 		fmt.Printf("Message received by %s: %s\n", c.ID, message)
+		method, resource, httpVersion, err := extractHTTPRequest(s.path, message)
+		if err != nil {
+			fmt.Printf("Invalid request: %s\n", err.Error())
+			c.Conn.Write([]byte(err.Error()))
+		}
+		fmt.Printf("\t-- Method:\t%s\n", string(method))
+		fmt.Printf("\t-- Resource:\t%s\n", resource)
+		fmt.Printf("\t-- HTTP Ver:\t%s\n", httpVersion)
+		break
 	}
 }
 
 func (s *Server) Start() {
-	fmt.Printf("Creating server on port %d\n", s.port)
-	fmt.Printf("http://127.0.0.1:%d\n", s.port)
+	fmt.Println("Server start")
+	fmt.Printf("\tCreating server on port %d\n", s.port)
+	fmt.Printf("\thttp://127.0.0.1:%d\n", s.port)
+	path, _ := os.Getwd()
+	fmt.Printf("\tCurrent directory: %s\n", path)
 
 	for {
 		conn, err := s.Ln.Accept()
@@ -96,7 +115,7 @@ func scanLinesWithCR(data []byte, atEOF bool) (advance int, token []byte, err er
 	return 0, nil, nil
 }
 
-func extractHTTPRequest(request string) (method Method, resource string, httpVersion string, err error) {
+func extractHTTPRequest(path, request string) (method Method, resource string, httpVersion string, err error) {
 	lines := strings.Split(request, "\n")
 	parts := strings.Split(lines[0], " ")
 
@@ -111,7 +130,8 @@ func extractHTTPRequest(request string) (method Method, resource string, httpVer
 	}
 
 	// TODO Allow users to customise the folder to serve
-	if _, e := os.Stat(resource); os.IsNotExist(e) {
+	fmt.Println(filepath.Join(path, resource))
+	if _, e := os.Stat(filepath.Join(path, resource)); os.IsNotExist(e) {
 		err = fmt.Errorf("Invalid resource.")
 		return
 	}
