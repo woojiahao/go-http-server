@@ -2,9 +2,9 @@ package server
 
 import (
 	"bufio"
+	"bytes"
 	"fmt"
 	"github.com/woojiahao/go-http-server/internal/client"
-	"io"
 	"net"
 	"strings"
 )
@@ -40,21 +40,11 @@ func (s *Server) HandleConn(c *client.Client) {
 		_ = c.Conn.Close()
 	}()
 
-	for {
-		content := make([]string, 0)
-		for {
-			// Keep reading the input from the client and adding it to the content
-			msg, _, err := bufio.NewReader(c.Conn).ReadLine()
-			if err == io.EOF {
-				fmt.Printf("Client %s disconnected\n", c.ID)
-				return
-			}
-			if string(msg) == "" {
-				break
-			}
-			content = append(content, string(msg))
-		}
-		message := strings.Join(content, "\n")
+	scanner := bufio.NewScanner(c.Conn)
+	scanner.Split(scanLinesWithCR)
+	for scanner.Scan() {
+		message := scanner.Text()
+		fmt.Println(message)
 		fmt.Printf("Message received by %s: %s\n", c.ID, message)
 		c.Conn.Write([]byte(fmt.Sprintf("-- You sent %s\n", message)))
 		res, err := processMessage(message)
@@ -75,8 +65,10 @@ func (s *Server) Start() {
 		if err != nil {
 			select {
 			case <-s.done:
+				return
 			default:
 				fmt.Printf("Connection failed: %v", err)
+				return
 			}
 		}
 
@@ -92,8 +84,25 @@ func (s *Server) Stop() {
 	s.Ln.Close()
 }
 
+func scanLinesWithCR(data []byte, atEOF bool) (advance int, token []byte, err error) {
+	if atEOF && len(data) == 0 {
+		return 0, nil, nil
+	}
+
+	if i := bytes.IndexByte(data, '\r'); i >= 0 {
+		return i + 1, data[0:i], nil
+	}
+
+	if atEOF {
+		return len(data), data, nil
+	}
+
+	return 0, nil, nil
+}
+
 func processMessage(message string) (string, error) {
-	parts := strings.Split(message, " ")
+	lines := strings.Split(message, "\n")
+	parts := strings.Split(lines[0], " ")
 	protocol := Keyword(parts[0])
 
 	switch protocol {
