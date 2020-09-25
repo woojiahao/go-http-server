@@ -6,6 +6,8 @@ import (
 	"fmt"
 	"github.com/woojiahao/go-http-server/internal/client"
 	"net"
+	"os"
+	"regexp"
 	"strings"
 )
 
@@ -46,13 +48,6 @@ func (s *Server) HandleConn(c *client.Client) {
 		message := scanner.Text()
 		fmt.Println(message)
 		fmt.Printf("Message received by %s: %s\n", c.ID, message)
-		c.Conn.Write([]byte(fmt.Sprintf("-- You sent %s\n", message)))
-		res, err := processMessage(message)
-		if err != nil {
-			c.Conn.Write([]byte(fmt.Sprintf("!- ERROR %s\n", err)))
-		} else {
-			c.Conn.Write([]byte(fmt.Sprintf(">- %s\n", res)))
-		}
 	}
 }
 
@@ -85,6 +80,7 @@ func (s *Server) Stop() {
 }
 
 func scanLinesWithCR(data []byte, atEOF bool) (advance int, token []byte, err error) {
+	// TODO Figure out how this works
 	if atEOF && len(data) == 0 {
 		return 0, nil, nil
 	}
@@ -100,34 +96,30 @@ func scanLinesWithCR(data []byte, atEOF bool) (advance int, token []byte, err er
 	return 0, nil, nil
 }
 
-func processMessage(message string) (string, error) {
-	lines := strings.Split(message, "\n")
+func extractHTTPRequest(request string) (method Method, resource string, httpVersion string, err error) {
+	lines := strings.Split(request, "\n")
 	parts := strings.Split(lines[0], " ")
-	protocol := Keyword(parts[0])
 
-	switch protocol {
-	case GET:
-		word, err := handleGET(parts[1])
-		if err != nil {
-			return "", err
-		}
-		return fmt.Sprintf("ANSWER %s", word), nil
-
-	case SET:
-		handleSET(parts[1], strings.Join(parts[2:], "\n"))
-		return formatData(), nil
-
-	case CLEAR:
-		handleCLEAR()
-		return formatData(), nil
-
-	case ALL:
-		output := handleALL()
-		return strings.Join(output, "\n"), nil
-
-	default:
-		return "", fmt.Errorf("invalid protocol (%s) used", protocol)
+	if len(parts) != 3 {
+		return Method(""), "", "", fmt.Errorf("HTTP request must include [method] [resource] [http-version]\\r\\n")
 	}
 
-	return "", nil
+	method, resource, httpVersion = Method(parts[0]), parts[1], parts[2]
+	if !method.isValid() {
+		err = fmt.Errorf("Invalid method. Methods available: %v", methods)
+		return
+	}
+
+	// TODO Allow users to customise the folder to serve
+	if _, e := os.Stat(resource); os.IsNotExist(e) {
+		err = fmt.Errorf("Invalid resource.")
+		return
+	}
+
+	if match, _ := regexp.MatchString("^HTTP/(0.9|1.0|1.1|2.0)$", httpVersion); !match {
+		err = fmt.Errorf("Invalid HTTP version. Available versions: [0.9, 1.0, 1.1, 2.0]")
+		return
+	}
+
+	return
 }
