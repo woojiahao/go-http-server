@@ -9,6 +9,7 @@ import (
 	"net"
 	"os"
 	"path/filepath"
+	"strconv"
 	"strings"
 )
 
@@ -125,8 +126,12 @@ func generateResponse(request Request, path string) Response {
 		return response
 	}
 
+	// TODO Allow users to configure server name and set that as a response header
 	response.statusCode = OK
 	response.content = string(data)
+	response.headers = make(map[string]string)
+	response.headers["Content-Type"] = "text/plain"
+	response.headers["Content-Length"] = strconv.Itoa(len(data))
 
 	return response
 }
