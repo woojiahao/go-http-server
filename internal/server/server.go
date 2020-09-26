@@ -4,7 +4,6 @@ import (
 	"bufio"
 	"bytes"
 	"fmt"
-	"github.com/woojiahao/go-http-server/internal/client"
 	"io/ioutil"
 	"net"
 	"os"
@@ -14,11 +13,10 @@ import (
 )
 
 type Server struct {
-	Ln      net.Listener
-	port    int
-	clients []*client.Client
-	done    chan bool
-	path    string
+	ln   net.Listener
+	port int
+	done chan bool
+	path string
 }
 
 func Create(port int) *Server {
@@ -33,16 +31,9 @@ func Create(port int) *Server {
 	return &Server{
 		ln,
 		port,
-		make([]*client.Client, 0),
 		make(chan bool, 1),
 		path,
 	}
-}
-
-func (s *Server) AddConn(conn net.Conn) *client.Client {
-	client := client.Create(conn)
-	s.clients = append(s.clients, client)
-	return client
 }
 
 func (s *Server) Start() {
@@ -53,7 +44,7 @@ func (s *Server) Start() {
 	fmt.Printf("\tCurrent directory: %s\n", path)
 
 	for {
-		conn, err := s.Ln.Accept()
+		conn, err := s.ln.Accept()
 		if err != nil {
 			select {
 			case <-s.done:
@@ -64,33 +55,30 @@ func (s *Server) Start() {
 			}
 		}
 
-		client := s.AddConn(conn)
-		fmt.Printf("New connection made to client %s\n", client.ID)
-		go s.HandleConn(client)
+		go s.HandleConn(conn)
 	}
 }
 
 func (s *Server) Stop() {
 	fmt.Println("Stopping server")
 	s.done <- true
-	s.Ln.Close()
+	s.ln.Close()
 }
 
-func (s *Server) HandleConn(c *client.Client) {
+func (s *Server) HandleConn(conn net.Conn) {
 	defer func() {
-		fmt.Printf("Connection %s closed\n", c.ID)
-		_ = c.Conn.Close()
+		_ = conn.Close()
 	}()
 
 	// Create a scanner that only stops reading when CRLF is read
-	scanner := bufio.NewScanner(c.Conn)
+	scanner := bufio.NewScanner(conn)
 	scanner.Split(scanLinesWithCR)
 
 	// Read the request from the client
 	request, err := readRequest(scanner, s.path)
 	if err != nil {
 		fmt.Printf("Invalid request: %s\n", err.Error())
-		c.Conn.Write([]byte(err.Error()))
+		conn.Write([]byte(err.Error()))
 		return
 	}
 
@@ -98,7 +86,7 @@ func (s *Server) HandleConn(c *client.Client) {
 	fmt.Printf("Headers: %v\n", request.headers)
 
 	response := generateResponse(request, s.path)
-	c.Conn.Write([]byte(response.Serialize()))
+	conn.Write([]byte(response.Serialize()))
 }
 
 func generateResponse(request Request, path string) Response {
