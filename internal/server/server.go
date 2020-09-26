@@ -38,11 +38,8 @@ func Create(port int, path string) *Server {
 }
 
 func (s *Server) Start() {
-	fmt.Println("Server start")
-	fmt.Printf("\tCreating server on port %d\n", s.port)
-	fmt.Printf("\thttp://127.0.0.1:%d\n", s.port)
-	path, _ := os.Getwd()
-	fmt.Printf("\tCurrent directory: %s\n", path)
+	fmt.Printf("Creating server on port %d\n", s.port)
+	fmt.Printf("http://127.0.0.1:%d\n", s.port)
 
 	for {
 		conn, err := s.ln.Accept()
@@ -84,7 +81,6 @@ func (s *Server) HandleConn(conn net.Conn) {
 	}
 
 	fmt.Printf("%s request for %s on %s\n", string(request.method), request.resource, request.httpVersion)
-	fmt.Printf("Headers: %v\n", request.headers)
 
 	response := generateResponse(request, s.path)
 	conn.Write([]byte(response.Serialize()))
