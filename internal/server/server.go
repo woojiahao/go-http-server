@@ -5,8 +5,10 @@ import (
 	"bytes"
 	"fmt"
 	"github.com/woojiahao/go-http-server/internal/client"
+	"io/ioutil"
 	"net"
 	"os"
+	"path/filepath"
 	"strings"
 )
 
@@ -84,7 +86,7 @@ func (s *Server) HandleConn(c *client.Client) {
 	scanner.Split(scanLinesWithCR)
 
 	// Read the request from the client
-	request, err := s.readRequest(scanner)
+	request, err := readRequest(scanner, s.path)
 	if err != nil {
 		fmt.Printf("Invalid request: %s\n", err.Error())
 		c.Conn.Write([]byte(err.Error()))
@@ -94,9 +96,42 @@ func (s *Server) HandleConn(c *client.Client) {
 	fmt.Printf("%s request for %s on %s\n", string(request.method), request.resource, request.httpVersion)
 	fmt.Printf("Headers: %v\n", request.headers)
 
+	response := generateResponse(request, s.path)
+	c.Conn.Write([]byte(response.Serialize()))
 }
 
-func (s *Server) readRequest(scanner *bufio.Scanner) (request Request, err error) {
+func generateResponse(request Request, path string) Response {
+	response := Response{httpVersion: request.httpVersion}
+
+	if !request.method.isValid() {
+		response.statusCode = BadRequest
+		response.content = fmt.Sprintf("Invalid HTTP method %s used", request.method)
+		return response
+	}
+
+	// TODO Allow users to customise the folder to serve
+	resource := filepath.Join(path, request.resource)
+	if _, e := os.Stat(resource); os.IsNotExist(e) {
+		response.statusCode = NotFound
+		response.content = fmt.Sprintf("File %s not found", resource)
+		return response
+	}
+
+	data, err := ioutil.ReadFile(resource)
+
+	if err != nil {
+		response.statusCode = InternalServerError
+		response.content = "Something went wrong in the server!"
+		return response
+	}
+
+	response.statusCode = OK
+	response.content = string(data)
+
+	return response
+}
+
+func readRequest(scanner *bufio.Scanner, path string) (request Request, err error) {
 	headers := make(map[string]string)
 	var method Method
 	var resource string
@@ -105,7 +140,7 @@ func (s *Server) readRequest(scanner *bufio.Scanner) (request Request, err error
 	// First line is the start line
 	if scanner.Scan() {
 		startLine := scanner.Text()
-		method, resource, httpVersion, err = parseStartLine(s.path, startLine)
+		method, resource, httpVersion, err = parseStartLine(startLine)
 		if err != nil {
 			return
 		}
