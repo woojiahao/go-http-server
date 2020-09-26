@@ -7,8 +7,6 @@ import (
 	"github.com/woojiahao/go-http-server/internal/client"
 	"net"
 	"os"
-	"path/filepath"
-	"regexp"
 	"strings"
 )
 
@@ -52,10 +50,11 @@ func (s *Server) HandleConn(c *client.Client) {
 
 	scanner := bufio.NewScanner(c.Conn)
 	scanner.Split(scanLinesWithCR)
-	for scanner.Scan() {
-		message := scanner.Text()
-		fmt.Printf("Message received by %s: %s\n", c.ID, message)
-		method, resource, httpVersion, err := extractHTTPRequest(s.path, message)
+
+	// First line is the start line
+	if scanner.Scan() {
+		startLine := scanner.Text()
+		method, resource, httpVersion, err := parseStartLine(s.path, startLine)
 		if err != nil {
 			fmt.Printf("Invalid request: %s\n", err.Error())
 			c.Conn.Write([]byte(err.Error()))
@@ -63,8 +62,25 @@ func (s *Server) HandleConn(c *client.Client) {
 		fmt.Printf("\t-- Method:\t%s\n", string(method))
 		fmt.Printf("\t-- Resource:\t%s\n", resource)
 		fmt.Printf("\t-- HTTP Ver:\t%s\n", httpVersion)
-		break
 	}
+
+	// Second line onwards is the headers
+	// TODO Check why headers are returned on new lines rather than all together and then with a \r\n at the end like the
+	// document suggest
+	headers := make(map[string]string)
+	for scanner.Scan() {
+		h := strings.TrimSpace(scanner.Text())
+		if h == "" {
+			break
+		}
+		key, value, err := parseHeader(h)
+		if err != nil {
+			fmt.Printf("Invalid header: %s\n", h)
+			c.Conn.Write([]byte(err.Error()))
+		}
+		headers[key] = value
+	}
+	fmt.Println(headers)
 }
 
 func (s *Server) Start() {
@@ -113,33 +129,4 @@ func scanLinesWithCR(data []byte, atEOF bool) (advance int, token []byte, err er
 	}
 
 	return 0, nil, nil
-}
-
-func extractHTTPRequest(path, request string) (method Method, resource string, httpVersion string, err error) {
-	lines := strings.Split(request, "\n")
-	parts := strings.Split(lines[0], " ")
-
-	if len(parts) != 3 {
-		return Method(""), "", "", fmt.Errorf("HTTP request must include [method] [resource] [http-version]\\r\\n")
-	}
-
-	method, resource, httpVersion = Method(parts[0]), parts[1], parts[2]
-	if !method.isValid() {
-		err = fmt.Errorf("Invalid method. Methods available: %v", methods)
-		return
-	}
-
-	// TODO Allow users to customise the folder to serve
-	fmt.Println(filepath.Join(path, resource))
-	if _, e := os.Stat(filepath.Join(path, resource)); os.IsNotExist(e) {
-		err = fmt.Errorf("Invalid resource.")
-		return
-	}
-
-	if match, _ := regexp.MatchString("^HTTP/(0.9|1.0|1.1|2.0)$", httpVersion); !match {
-		err = fmt.Errorf("Invalid HTTP version. Available versions: [0.9, 1.0, 1.1, 2.0]")
-		return
-	}
-
-	return
 }
