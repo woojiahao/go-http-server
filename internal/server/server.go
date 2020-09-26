@@ -42,47 +42,6 @@ func (s *Server) AddConn(conn net.Conn) *client.Client {
 	return client
 }
 
-func (s *Server) HandleConn(c *client.Client) {
-	defer func() {
-		fmt.Printf("Connection %s dropped\n", c.ID)
-		_ = c.Conn.Close()
-	}()
-
-	scanner := bufio.NewScanner(c.Conn)
-	scanner.Split(scanLinesWithCR)
-
-	// First line is the start line
-	if scanner.Scan() {
-		startLine := scanner.Text()
-		method, resource, httpVersion, err := parseStartLine(s.path, startLine)
-		if err != nil {
-			fmt.Printf("Invalid request: %s\n", err.Error())
-			c.Conn.Write([]byte(err.Error()))
-		}
-		fmt.Printf("\t-- Method:\t%s\n", string(method))
-		fmt.Printf("\t-- Resource:\t%s\n", resource)
-		fmt.Printf("\t-- HTTP Ver:\t%s\n", httpVersion)
-	}
-
-	// Second line onwards is the headers
-	// TODO Check why headers are returned on new lines rather than all together and then with a \r\n at the end like the
-	// document suggest
-	headers := make(map[string]string)
-	for scanner.Scan() {
-		h := strings.TrimSpace(scanner.Text())
-		if h == "" {
-			break
-		}
-		key, value, err := parseHeader(h)
-		if err != nil {
-			fmt.Printf("Invalid header: %s\n", h)
-			c.Conn.Write([]byte(err.Error()))
-		}
-		headers[key] = value
-	}
-	fmt.Println(headers)
-}
-
 func (s *Server) Start() {
 	fmt.Println("Server start")
 	fmt.Printf("\tCreating server on port %d\n", s.port)
@@ -112,6 +71,65 @@ func (s *Server) Stop() {
 	fmt.Println("Stopping server")
 	s.done <- true
 	s.Ln.Close()
+}
+
+func (s *Server) HandleConn(c *client.Client) {
+	defer func() {
+		fmt.Printf("Connection %s closed\n", c.ID)
+		_ = c.Conn.Close()
+	}()
+
+	// Create a scanner that only stops reading when CRLF is read
+	scanner := bufio.NewScanner(c.Conn)
+	scanner.Split(scanLinesWithCR)
+
+	// Read the request from the client
+	request, err := s.readRequest(scanner)
+	if err != nil {
+		fmt.Printf("Invalid request: %s\n", err.Error())
+		c.Conn.Write([]byte(err.Error()))
+		return
+	}
+
+	fmt.Printf("%s request for %s on %s\n", string(request.method), request.resource, request.httpVersion)
+	fmt.Printf("Headers: %v\n", request.headers)
+
+}
+
+func (s *Server) readRequest(scanner *bufio.Scanner) (request Request, err error) {
+	headers := make(map[string]string)
+	var method Method
+	var resource string
+	var httpVersion string
+
+	// First line is the start line
+	if scanner.Scan() {
+		startLine := scanner.Text()
+		method, resource, httpVersion, err = parseStartLine(s.path, startLine)
+		if err != nil {
+			return
+		}
+	}
+
+	// Second line onwards is the headers
+	// TODO Check why headers are returned on new lines rather than all together and then with a \r\n at the end like the
+	// document suggest
+	for scanner.Scan() {
+		h := strings.TrimSpace(scanner.Text())
+		if h == "" {
+			break
+		}
+		key, value, e := parseHeader(h)
+		if e != nil {
+			err = e
+			return
+		}
+		headers[key] = value
+	}
+
+	request = Request{method, resource, httpVersion, headers}
+
+	return
 }
 
 func scanLinesWithCR(data []byte, atEOF bool) (advance int, token []byte, err error) {
