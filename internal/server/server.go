@@ -14,24 +14,25 @@ import (
 
 type Server struct {
 	ln   net.Listener
-	port int
 	done chan bool
+	port int
 	path string
 }
 
-func Create(port int) *Server {
+func Create(port int, path string) *Server {
 	ln, err := net.Listen("tcp", fmt.Sprintf(":%d", port))
 	if err != nil {
 		panic(err)
 	}
-	path, err := os.Getwd()
-	if err != nil {
+
+	if _, err = os.Stat(path); os.IsNotExist(err) {
 		panic(err)
 	}
+
 	return &Server{
 		ln,
-		port,
 		make(chan bool, 1),
+		port,
 		path,
 	}
 }

@@ -5,6 +5,6 @@ import (
 )
 
 func main() {
-	s := server.Create(8000)
+	s := server.Create(8000, "/home/chill/dotfiles")
 	s.Start()
 }
