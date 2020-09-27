@@ -19,7 +19,6 @@ func (r *Response) Serialize() string {
 		for key, value := range r.headers {
 			headers = append(headers, fmt.Sprintf("%s: %s", key, value))
 		}
-		fmt.Println(headers)
 		output = append(output, headers...)
 	}
 	output[len(output)-1] = output[len(output)-1] + "\n"

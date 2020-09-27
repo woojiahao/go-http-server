@@ -75,10 +75,10 @@ func (s *Server) HandleConn(conn net.Conn) {
 		return
 	}
 
-	fmt.Printf("%s request for %s on %s\n", string(request.method), request.resource, request.httpVersion)
-
 	response := generateResponse(request, s.path)
 	conn.Write([]byte(response.Serialize()))
+
+	fmt.Printf("%s :: %s :: %d\n", string(request.method), request.resource, response.statusCode.code)
 }
 
 func generateResponse(request Request, path string) Response {
@@ -96,15 +96,15 @@ func generateResponse(request Request, path string) Response {
 		response.content = fmt.Sprintf("Invalid resource. %v", err)
 		return response
 	}
-	if _, e := os.Stat(resource); os.IsNotExist(e) {
-		response.statusCode = NotFound
-		response.content = fmt.Sprintf("File %s not found", resource)
-		return response
-	}
 	// TODO Explore other ways of securing the resources on the server
 	if !strings.Contains(filepath.Dir(resource), path) {
 		response.statusCode = BadRequest
 		response.content = fmt.Sprintf("Attempting to access file outside of allowed directory.")
+		return response
+	}
+	if _, e := os.Stat(resource); os.IsNotExist(e) {
+		response.statusCode = NotFound
+		response.content = fmt.Sprintf("File %s not found", resource)
 		return response
 	}
 
