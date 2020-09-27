@@ -149,8 +149,6 @@ func readRequest(scanner *bufio.Scanner, path string) (request Request, err erro
 	}
 
 	// Second line onwards is the headers
-	// TODO Check why headers are returned on new lines rather than all together and then with a \r\n at the end like the
-	// document suggest
 	for scanner.Scan() {
 		h := strings.TrimSpace(scanner.Text())
 		if h == "" {
