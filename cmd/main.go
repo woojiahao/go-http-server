@@ -26,6 +26,7 @@ func main() {
 				Usage:       "port of the HTTP server",
 				Destination: &port,
 			},
+			// TODO Ensure that this is an absolute path
 			&cli.StringFlag{
 				Name:        "path",
 				Value:       currentDir,

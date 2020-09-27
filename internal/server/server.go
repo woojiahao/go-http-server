@@ -96,10 +96,21 @@ func generateResponse(request Request, path string) Response {
 	}
 
 	// TODO Allow users to customise the folder to serve
-	resource := filepath.Join(path, request.resource)
+	resource, err := filepath.Abs(filepath.Join(path, request.resource))
+	if err != nil {
+		response.statusCode = BadRequest
+		response.content = fmt.Sprintf("Invalid resource. %v", err)
+		return response
+	}
 	if _, e := os.Stat(resource); os.IsNotExist(e) {
 		response.statusCode = NotFound
 		response.content = fmt.Sprintf("File %s not found", resource)
+		return response
+	}
+	// TODO Explore other ways of securing the resources on the server
+	if !strings.Contains(filepath.Dir(resource), path) {
+		response.statusCode = BadRequest
+		response.content = fmt.Sprintf("Attempting to access file outside of allowed directory.")
 		return response
 	}
 
