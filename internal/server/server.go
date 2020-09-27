@@ -8,7 +8,6 @@ import (
 	"net"
 	"os"
 	"path/filepath"
-	"strconv"
 	"strings"
 )
 
@@ -83,7 +82,11 @@ func (s *Server) HandleConn(conn net.Conn) {
 }
 
 func generateResponse(request Request, path, serverName string) Response {
-	response := Response{httpVersion: request.httpVersion}
+	response := Response{
+		httpVersion: request.httpVersion,
+		headers:     make(map[string]string),
+	}
+	response.headers["Server"] = serverName
 
 	if !request.method.isValid() {
 		response.statusCode = BadRequest
@@ -126,10 +129,6 @@ func generateResponse(request Request, path, serverName string) Response {
 
 	response.statusCode = OK
 	response.content = string(data)
-	response.headers = make(map[string]string)
-	response.headers["Content-Type"] = "text/plain"
-	response.headers["Content-Length"] = strconv.Itoa(len(data))
-	response.headers["Server"] = serverName
 
 	return response
 }

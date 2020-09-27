@@ -1,6 +1,7 @@
 package server
 
 import "fmt"
+import "strconv"
 import "strings"
 
 type Response struct {
@@ -14,6 +15,10 @@ func (r *Response) Serialize() string {
 	output := make([]string, 0)
 	startLine := fmt.Sprintf("%s %d %s", r.httpVersion, r.statusCode.code, r.statusCode.value)
 	output = append(output, startLine)
+
+	// TODO Auto-detect content type based on file name
+	r.headers["Content-Type"] = "text/plain"
+	r.headers["Content-Length"] = strconv.Itoa(len(r.content))
 	if len(r.headers) != 0 {
 		headers := make([]string, 0)
 		for key, value := range r.headers {
