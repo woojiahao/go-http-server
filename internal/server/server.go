@@ -90,6 +90,13 @@ func generateResponse(request Request, path string) Response {
 		return response
 	}
 
+	// TODO Allow admins to configure the folders they want to allow users to access
+	if request.resource == "/" {
+		response.statusCode = OK
+		response.content = "Exploring the root folder is pretty boring"
+		return response
+	}
+
 	resource, err := filepath.Abs(filepath.Join(path, request.resource))
 	if err != nil {
 		response.statusCode = BadRequest
@@ -97,7 +104,7 @@ func generateResponse(request Request, path string) Response {
 		return response
 	}
 	// TODO Explore other ways of securing the resources on the server
-	if !strings.Contains(filepath.Dir(resource), path) {
+	if !strings.Contains(resource, path) {
 		response.statusCode = BadRequest
 		response.content = fmt.Sprintf("Attempting to access file outside of allowed directory.")
 		return response
