@@ -17,9 +17,10 @@ type Server struct {
 	done chan bool
 	port int
 	path string
+	name string
 }
 
-func Create(port int, path string) *Server {
+func Create(port int, path, serverName string) *Server {
 	ln, err := net.Listen("tcp", fmt.Sprintf(":%d", port))
 	if err != nil {
 		panic(err)
@@ -29,7 +30,7 @@ func Create(port int, path string) *Server {
 		panic(err)
 	}
 
-	return &Server{ln, make(chan bool, 1), port, path}
+	return &Server{ln, make(chan bool, 1), port, path, serverName}
 }
 
 func (s *Server) Start() {
@@ -75,13 +76,13 @@ func (s *Server) HandleConn(conn net.Conn) {
 		return
 	}
 
-	response := generateResponse(request, s.path)
+	response := generateResponse(request, s.path, s.name)
 	conn.Write([]byte(response.Serialize()))
 
 	fmt.Printf("%s :: %s :: %d\n", string(request.method), request.resource, response.statusCode.code)
 }
 
-func generateResponse(request Request, path string) Response {
+func generateResponse(request Request, path, serverName string) Response {
 	response := Response{httpVersion: request.httpVersion}
 
 	if !request.method.isValid() {
@@ -123,12 +124,12 @@ func generateResponse(request Request, path string) Response {
 		return response
 	}
 
-	// TODO Allow users to configure server name and set that as a response header
 	response.statusCode = OK
 	response.content = string(data)
 	response.headers = make(map[string]string)
 	response.headers["Content-Type"] = "text/plain"
 	response.headers["Content-Length"] = strconv.Itoa(len(data))
+	response.headers["Server"] = serverName
 
 	return response
 }

@@ -13,7 +13,7 @@ import (
 
 func main() {
 	var port int
-	var path, config string
+	var path, config, serverName string
 	currentDir, _ := os.Getwd()
 
 	app := &cli.App{
@@ -39,6 +39,12 @@ func main() {
 				Usage:       "configuration filename (in YAML)",
 				Destination: &config,
 			},
+			&cli.StringFlag{
+				Name:        "server_name",
+				Value:       "HTTP server",
+				Usage:       "server name",
+				Destination: &serverName,
+			},
 		},
 		Action: func(c *cli.Context) error {
 			if strings.TrimSpace(config) != "" {
@@ -56,9 +62,10 @@ func main() {
 				// TODO Handle if blank, use default value instead
 				port = c.Port
 				path = c.Path
+				serverName = c.ServerName
 			}
 
-			s := server.Create(port, path)
+			s := server.Create(port, path, serverName)
 			s.Start()
 
 			return nil
