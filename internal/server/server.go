@@ -12,14 +12,15 @@ import (
 )
 
 type Server struct {
-	ln   net.Listener
-	done chan bool
-	port int
-	path string
-	name string
+	ln      net.Listener
+	done    chan bool
+	port    int
+	path    string
+	name    string
+	allowed []string
 }
 
-func Create(port int, path, serverName string) *Server {
+func Create(port int, path, serverName string, allowed []string) *Server {
 	ln, err := net.Listen("tcp", fmt.Sprintf(":%d", port))
 	if err != nil {
 		panic(err)
@@ -29,7 +30,22 @@ func Create(port int, path, serverName string) *Server {
 		panic(err)
 	}
 
-	return &Server{ln, make(chan bool, 1), port, path, serverName}
+	// Generate the paths for the allowed paths
+	allowedPaths := make([]string, len(allowed))
+	for i, a := range allowed {
+		p, err := filepath.Abs(filepath.Join(path, a))
+		if err != nil {
+			panic(err)
+		}
+
+		if _, e := os.Stat(p); os.IsNotExist(e) {
+			panic(err)
+		}
+
+		allowedPaths[i] = p
+	}
+
+	return &Server{ln, make(chan bool, 1), port, path, serverName, allowedPaths}
 }
 
 func (s *Server) Start() {
@@ -75,18 +91,18 @@ func (s *Server) HandleConn(conn net.Conn) {
 		return
 	}
 
-	response := generateResponse(request, s.path, s.name)
+	response := generateResponse(request, s)
 	conn.Write([]byte(response.Serialize()))
 
 	fmt.Printf("%s :: %s :: %d\n", string(request.method), request.resource, response.statusCode.code)
 }
 
-func generateResponse(request Request, path, serverName string) Response {
+func generateResponse(request Request, s *Server) Response {
 	response := Response{
 		httpVersion: request.httpVersion,
 		headers:     make(map[string]string),
 	}
-	response.headers["Server"] = serverName
+	response.headers["Server"] = s.name
 
 	if !request.method.isValid() {
 		response.statusCode = BadRequest
@@ -94,23 +110,28 @@ func generateResponse(request Request, path, serverName string) Response {
 		return response
 	}
 
-	// TODO Allow admins to configure the folders they want to allow users to access
 	if request.resource == "/" {
 		response.statusCode = OK
 		response.content = "Exploring the root folder is pretty boring"
 		return response
 	}
 
-	resource, err := filepath.Abs(filepath.Join(path, request.resource))
+	resource, err := filepath.Abs(filepath.Join(s.path, request.resource))
 	if err != nil {
 		response.statusCode = BadRequest
 		response.content = fmt.Sprintf("Invalid resource. %v", err)
 		return response
 	}
 	// TODO Explore other ways of securing the resources on the server
-	if !strings.Contains(resource, path) {
+	isAllowed := false
+	for _, a := range s.allowed {
+		if strings.Contains(resource, a) {
+			isAllowed = true
+		}
+	}
+	if !isAllowed {
 		response.statusCode = BadRequest
-		response.content = fmt.Sprintf("Attempting to access file outside of allowed directory.")
+		response.content = fmt.Sprintf("Resource not accessible.")
 		return response
 	}
 	if _, e := os.Stat(resource); os.IsNotExist(e) {

@@ -1,2 +1,7 @@
 port: 8088
 path: /home/chill/dotfiles
+server_name: dotfiles-server
+allowed:
+  - README.md
+  - emacs/
+  - scripts/

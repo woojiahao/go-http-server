@@ -14,12 +14,14 @@ import (
 func main() {
 	var port int
 	var path, config, serverName string
+	var allowed []string
 	currentDir, _ := os.Getwd()
 
 	app := &cli.App{
 		Name:  "go-http",
 		Usage: "starts a simple HTTP server",
 		Flags: []cli.Flag{
+			// TODO Add flag for configuring allowed paths
 			&cli.IntFlag{
 				Name:        "port",
 				Value:       8000,
@@ -63,9 +65,10 @@ func main() {
 				port = c.Port
 				path = c.Path
 				serverName = c.ServerName
+				allowed = c.Allowed
 			}
 
-			s := server.Create(port, path, serverName)
+			s := server.Create(port, path, serverName, allowed)
 			s.Start()
 
 			return nil
