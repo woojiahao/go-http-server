@@ -29,12 +29,7 @@ func Create(port int, path string) *Server {
 		panic(err)
 	}
 
-	return &Server{
-		ln,
-		make(chan bool, 1),
-		port,
-		path,
-	}
+	return &Server{ln, make(chan bool, 1), port, path}
 }
 
 func (s *Server) Start() {
@@ -95,7 +90,6 @@ func generateResponse(request Request, path string) Response {
 		return response
 	}
 
-	// TODO Allow users to customise the folder to serve
 	resource, err := filepath.Abs(filepath.Join(path, request.resource))
 	if err != nil {
 		response.statusCode = BadRequest
