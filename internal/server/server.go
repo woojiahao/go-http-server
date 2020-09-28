@@ -130,7 +130,7 @@ func generateResponse(request Request, s *Server) Response {
 		}
 	}
 	if !isAllowed {
-		response.statusCode = BadRequest
+		response.statusCode = Forbidden
 		response.content = fmt.Sprintf("Resource not accessible.")
 		return response
 	}
